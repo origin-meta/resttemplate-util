@@ -12,7 +12,7 @@ public class DefaultRestTemplateService extends AbstractRestTemplate {
 
     static final String SLASH = "/";
 
-    private static final String URL_PATTERN = "http://127.0.0.1/{}";
+    private static final String URL_PATTERN = "http://127.0.0.1/%s";
 
     protected DefaultRestTemplateService() {
         super(Res.class);
@@ -31,6 +31,12 @@ public class DefaultRestTemplateService extends AbstractRestTemplate {
             path = path.substring(1);
         }
         return String.format(URL_PATTERN, path);
+    }
+
+    @Override
+    protected Object resolveEntity(Object data) {
+        Res res = (Res) objectMapper.convertValue(data, responseWrapper);
+        return res.getData();
     }
 
     static class AuthorizationInfo {

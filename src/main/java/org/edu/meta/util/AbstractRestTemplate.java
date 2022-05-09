@@ -1,8 +1,14 @@
 package org.edu.meta.util;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.edu.meta.exception.RequestException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.*;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.ResponseEntity;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
@@ -13,28 +19,34 @@ import org.springframework.web.client.RestTemplate;
  */
 public abstract class AbstractRestTemplate {
 
+    private final static Logger logger = LoggerFactory.getLogger(AbstractRestTemplate.class);
+
     @Autowired
     protected RestTemplate restTemplate;
 
     /**
      * 返回体
      */
-    private Class<?> responseWrapper;
+    protected Class<?> responseWrapper;
+
+    @Autowired
+    protected ObjectMapper objectMapper;
+
 
     protected AbstractRestTemplate(Class<?> responseWrapper) {
         this.responseWrapper = responseWrapper;
     }
 
-    public void setResponseWrapper(Class<?> responseWrapper) {
-        this.responseWrapper = responseWrapper;
-    }
-
     protected void doPost(String path) {
-        this.exchange(path, HttpMethod.POST, emptyMap(), null, null);
+        this.exchange(path, HttpMethod.POST, emptyMap(), emptyMap(), null);
     }
 
     protected void doPost(String path, MultiValueMap<String, String> requestBody) {
         this.exchange(path, HttpMethod.POST, emptyMap(), requestBody, null);
+    }
+
+    protected <T> T doPost(String path, MultiValueMap<String, String> requestBody, Class<T> responseEntity) {
+        return this.exchange(path, HttpMethod.POST, emptyMap(), requestBody, responseEntity);
     }
 
     protected <T> T doPost(String path, Class<T> responseEntity) {
@@ -90,10 +102,15 @@ public abstract class AbstractRestTemplate {
         HttpEntity<MultiValueMap<String, String>> httpEntity = new HttpEntity<>(requestBody, httpHeaders);
         String requestPath = generatePath(path);
         ResponseEntity<?> response = restTemplate.exchange(requestPath, httpMethod, httpEntity, responseWrapper, requestParams);
-        if (response.getStatusCode() != HttpStatus.OK) {
-            throw new RequestException("网络请求异常");
+        if (!response.getStatusCode().is2xxSuccessful()) {
+            throw new RequestException("请求异常");
         }
-        return responseEntity != null ? responseEntity.cast(response.getBody()) : null;
+        if (responseEntity == null) {
+            return null;
+        } else {
+            Object body = resolveEntity(response.getBody());
+            return objectMapper.convertValue(body, responseEntity);
+        }
     }
 
 
@@ -110,5 +127,10 @@ public abstract class AbstractRestTemplate {
      * 请求路径
      */
     protected abstract String generatePath(String path);
+
+    /**
+     * 解析实体
+     */
+    protected abstract Object resolveEntity(Object data);
 
 }
